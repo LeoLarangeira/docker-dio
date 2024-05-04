@@ -1,0 +1,36 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vangrant.configure("2") do |config|
+    # Configuração da máquina master
+  config.vm.define "master" do |master|
+    master.vm.box = "ubuntu/bionic64"
+    master.vm.hostname = "master"
+    master.vm.network "private_network", ip: "192.168.50.10"
+    master.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+    end
+    master.vm.provision "docker", type: "shell", inline: "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
+  end
+
+  # Configuração das máquinas node01, node02 e node03
+  ["node01", "node02", "node03"].each_with_index do |node, index|
+    config.vm.define node do |node_vm|
+      node_vm.vm.box = "ubuntu/bionic64"
+      node_vm.vm.hostname = node
+      node_vm.vm.network "private_network", ip: "192.168.50.1#{index + 1}"
+      node_vm.vm.provider "virtualbox" do |vb|
+        vb.memory = "1024"
+      end
+      node_vm.vm.provision "docker", type: "shell", inline: "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
+    end
+  end
+
+  # Configuração do nó manager do cluster Swarm
+  config.vm.provision "shell", inline: "docker swarm init --advertise-addr 192.168.50.10"
+
+  # Adicionando os nós workers ao cluster Swarm
+  ["node01", "node02", "node03"].each do |node|
+    config.vm.provision "shell", inline: "docker swarm join --token <TOKEN> 192.168.50.10:2377", privileged: true
+  end
+end
